@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# interfaces
+WIFI_IFACE=wlan0
+LAN_IFACE=enp2s0
+USB_LAN_IFACE=enp6s0f3u1
+
+# hotspot creds
+SSID=lenovo
+PASS=blehbleh
+
+# args
+MODE=$1
+
+case $MODE in
+    --wifi)
+        INTERNET_IFACE=$WIFI_IFACE
+        MODE_NAME="WiFi"
+        ;;
+    --lan)
+        INTERNET_IFACE=$LAN_IFACE
+        MODE_NAME="LAN"
+        ;;
+    --usb_lan)
+        INTERNET_IFACE=$USB_LAN_IFACE
+        MODE_NAME="USB LAN"
+        ;;
+    *)
+        echo "Usage:"
+        echo "  hotspot --wifi"
+        echo "  hotspot --lan"
+        echo "  hotspot --usb_lan"
+        exit 1
+        ;;
+esac
+
+echo "Mode: $MODE_NAME"
+echo "Internet interface: $INTERNET_IFACE"
+
+# get current wifi channel
+echo "Getting current channel..."
+CHAN=$(iw dev wlan0 info | grep channel | awk '{print $2}')
+
+# lan only operation
+if [ -z $CHAN ]; then
+    echo "Wifi is not connected, setting channel to 149 (5 Ghz)"
+    CHAN=149
+    echo "Using 5 GHz"
+    sudo create_ap $WIFI_IFACE $INTERNET_IFACE $SSID $PASS \
+        --freq-band 5 \
+        -c $CHAN \
+        --ieee80211n \
+        --ieee80211ac \
+        --ieee80211ax \
+        --ht_capab '[HT40+][SHORT-GI-20][SHORT-GI-40]'
+    exit 0
+else
+    echo "Detected channel: $CHAN"
+fi
+
+# creating hotspot
+if [ $CHAN -le 14 ]; then
+    echo "Using 2.4 GHz"
+    sudo create_ap $WIFI_IFACE $INTERNET_IFACE $SSID $PASS \
+        --freq-band 2.4 \
+        -c $CHAN \
+        --ieee80211n \
+        --ieee80211ax \
+        --ht_capab '[HT40-]'
+else
+    echo "Using 5 GHz"
+    sudo create_ap $WIFI_IFACE $INTERNET_IFACE $SSID $PASS \
+        --freq-band 5 \
+        -c $CHAN \
+        --ieee80211n \
+        --ieee80211ac \
+        --ieee80211ax \
+        --ht_capab '[HT40-]'
+fi
